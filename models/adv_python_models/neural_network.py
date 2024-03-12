@@ -1,24 +1,54 @@
 # models/databricks/neural_network.py
 
-import dbt
-import pandas as pd
-import tensorflow as tf
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from pyspark.ml import Pipeline
+from pyspark.ml.classification import LogisticRegression
+from pyspark.ml.feature import VectorAssembler, StandardScaler
+from pyspark.sql import SparkSession
+from pyspark.sql.types import StructType, StructField, FloatType
 
-@dbt.model()
-def neural_network(df: pd.DataFrame) -> pd.DataFrame:
-    X = df[['feature1', 'feature2', 'feature3']].values
-    y = df['target'].values
-    scaler = StandardScaler()
-    X_scaled = scaler.fit_transform(X)
-    X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.2, random_state=42)
-    model = tf.keras.models.Sequential([
-        tf.keras.layers.Dense(128, activation='relu', input_shape=(X_train.shape[1],)),
-        tf.keras.layers.Dense(64, activation='relu'),
-        tf.keras.layers.Dense(1)
+
+def model(dbt, session) -> SparkSession:
+    dbt.config(
+        materialized="table",
+        packages=["pyspark"]
+    )
+
+    # Create a Spark session
+    spark = session
+
+    # Sample data
+    data = [
+        (1.0, 2.0, 1.0),
+        (2.0, 1.0, 0.0),
+        (3.0, 3.0, 1.0),
+        (4.0, 1.0, 0.0),
+        (5.0, 2.0, 1.0)
+    ]
+
+    schema = StructType([
+        StructField("feature1", FloatType(), True),
+        StructField("feature2", FloatType(), True),
+        StructField("label", FloatType(), True)
     ])
-    model.compile(optimizer='adam', loss='mean_squared_error')
-    model.fit(X_train, y_train, epochs=10, batch_size=32)
-    df['predictions'] = model.predict(X_scaled).flatten()
-    return df
+
+    # Create a DataFrame
+    df = spark.createDataFrame(data, schema)
+
+    # Assemble features
+    assembler = VectorAssembler(inputCols=["feature1", "feature2"], outputCol="features")
+
+    # Scale features
+    scaler = StandardScaler(inputCol="features", outputCol="scaledFeatures")
+
+    # Create a logistic regression model
+    lr = LogisticRegression(featuresCol="scaledFeatures", labelCol="label")
+
+    # Create a pipeline
+    pipeline = Pipeline(stages=[assembler, scaler, lr])
+
+    # Fit the model
+    model = pipeline.fit(df)
+
+    # Make predictions
+    predictions = model.transform(df)
+    return predictions

@@ -1,5 +1,6 @@
 import pandas as pd
 
+
 def model(dbt, session):
     dbt.config(
         packages=["pandas"]
@@ -10,4 +11,3 @@ def model(dbt, session):
     }
     df = pd.DataFrame(data)
     return df
-
