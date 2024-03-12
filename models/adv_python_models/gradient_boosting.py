@@ -18,3 +18,4 @@ def model(dbt, session) -> pd.DataFrame:
     model1.fit(X, y)
     df['predictions'] = model1.predict(X)
     return df
+    # this is a comment 
